@@ -12,10 +12,9 @@ const voiceRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const ELEVENLABS_API_KEY = process.env["ELEVENLABS_API_KEY"] ?? "";
-const VOICE_ID = "erXw76RvabIuWST2abio";
 const MODEL_ID = "eleven_multilingual_v2";
 
-const EFFECTS: Record<string, string> = {
+const FFMPEG_EFFECTS: Record<string, string> = {
   robot:     "aecho=0.8:0.88:30:0.5,vibrato=f=20:d=0.5,asetrate=40000,aresample=44100",
   deep:      "asetrate=30000,aresample=44100",
   chipmunk:  "asetrate=70000,aresample=44100",
@@ -26,24 +25,20 @@ const EFFECTS: Record<string, string> = {
   demon:     "asetrate=22000,aresample=44100,aecho=0.9:0.8:80:0.6",
   radio:     "highpass=f=300,lowpass=f=3400,aecho=0.6:0.5:10:0.3,volume=2",
   whisper:   "volume=0.4,highpass=f=1000,aecho=0.5:0.4:30:0.2",
+  reverb:    "aecho=0.8:0.88:60:0.4,aecho=0.7:0.7:200:0.3",
+  telephone: "highpass=f=400,lowpass=f=3000,aecho=0.6:0.5:8:0.2,volume=1.5",
+  megaphone: "highpass=f=500,lowpass=f=5000,volume=2.5,aecho=0.5:0.4:5:0.1",
+  underwater:"asetrate=38000,aresample=44100,aecho=0.9:0.9:300:0.5,lowpass=f=800",
 };
 
 async function applyFFmpegEffect(buffer: Buffer, mimeType: string, effect: string): Promise<Buffer> {
   const ext = mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" : "webm";
   const tmpIn  = join(tmpdir(), `vc_in_${Date.now()}.${ext}`);
   const tmpOut = join(tmpdir(), `vc_out_${Date.now()}.mp3`);
-
   try {
     writeFileSync(tmpIn, buffer);
-    const filter = EFFECTS[effect] ?? EFFECTS.echo;
-    await execFileAsync("ffmpeg", [
-      "-y", "-i", tmpIn,
-      "-af", filter,
-      "-codec:a", "libmp3lame",
-      "-q:a", "2",
-      "-ar", "44100",
-      tmpOut,
-    ]);
+    const filter = FFMPEG_EFFECTS[effect] ?? FFMPEG_EFFECTS["echo"]!;
+    await execFileAsync("ffmpeg", ["-y", "-i", tmpIn, "-af", filter, "-codec:a", "libmp3lame", "-q:a", "2", "-ar", "44100", tmpOut]);
     return readFileSync(tmpOut);
   } finally {
     try { unlinkSync(tmpIn); } catch {}
@@ -55,8 +50,7 @@ voiceRouter.post("/effects", upload.single("audio"), async (req, res) => {
   try {
     if (!req.file) { res.status(400).json({ error: "No audio file." }); return; }
     const effect = (req.body.effect as string) ?? "echo";
-    if (!EFFECTS[effect]) { res.status(400).json({ error: `Unknown effect: ${effect}` }); return; }
-
+    if (!FFMPEG_EFFECTS[effect]) { res.status(400).json({ error: `Unknown effect: ${effect}` }); return; }
     const outputBuffer = await applyFFmpegEffect(req.file.buffer, req.file.mimetype, effect);
     res.json({ audio: outputBuffer.toString("base64"), mimeType: "audio/mpeg" });
   } catch (err) {
@@ -70,6 +64,8 @@ voiceRouter.post("/speech-to-speech", upload.single("audio"), async (req, res) =
     if (!req.file) { res.status(400).json({ error: "No audio file." }); return; }
     if (!ELEVENLABS_API_KEY) { res.status(500).json({ error: "ElevenLabs key not configured." }); return; }
 
+    const voiceId = (req.body.voiceId as string) ?? "erXw76RvabIuWST2abio";
+
     const form = new FormData();
     form.append("audio", req.file.buffer, {
       filename: req.file.originalname || "recording.m4a",
@@ -77,20 +73,17 @@ voiceRouter.post("/speech-to-speech", upload.single("audio"), async (req, res) =
     });
     form.append("model_id", MODEL_ID);
     form.append("voice_settings", JSON.stringify({
-      stability: 0.4,
-      similarity_boost: 0.85,
+      stability: 0.35,
+      similarity_boost: 0.88,
       style: 0.0,
       use_speaker_boost: true,
     }));
 
-    const elevenRes = await fetch(
-      `https://api.elevenlabs.io/v1/speech-to-speech/${VOICE_ID}`,
-      {
-        method: "POST",
-        headers: { "xi-api-key": ELEVENLABS_API_KEY, ...form.getHeaders() },
-        body: form.getBuffer(),
-      }
-    );
+    const elevenRes = await fetch(`https://api.elevenlabs.io/v1/speech-to-speech/${voiceId}`, {
+      method: "POST",
+      headers: { "xi-api-key": ELEVENLABS_API_KEY, ...form.getHeaders() },
+      body: form.getBuffer(),
+    });
 
     if (!elevenRes.ok) {
       const errText = await elevenRes.text();
