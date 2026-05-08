@@ -59,7 +59,7 @@
     "expo-av": "^16.0.8",
     "expo-file-system": "^19.0.22",
     "expo-sharing": "^14.0.8",
-    "expo-updates": "^55.0.21",
+    "expo-updates": "~54.0.5",
     "firebase": "^12.12.1"
   }
 }
