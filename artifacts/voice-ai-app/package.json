@@ -33,7 +33,7 @@
     "expo-splash-screen": "~31.0.12",
     "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
-    "expo-updates": "0.26.16",
+    "expo-updates": "^0.28.4",
     "expo-web-browser": "~15.0.10",
     "firebase": "^12.12.1",
     "fs-extra": "^11.2.0",
