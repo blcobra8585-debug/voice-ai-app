@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "627241906810",
+    "project_id": "voice-changer-d5266",
+    "storage_bucket": "voice-changer-d5266.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:627241906810:android:c42d7aa506c051c97f81c3",
+        "android_client_info": {
+          "package_name": "com.voice.changer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7fSAoIOBZy44K0TET_pkQB8qK7_z1nfI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
