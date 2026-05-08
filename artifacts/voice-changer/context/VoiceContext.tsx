@@ -378,7 +378,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         await FileSystem.writeAsStringAsync(outputUri, b64, { encoding: FileSystem.EncodingType.Base64 });
       } else {
         outputUri = `${FileSystem.cacheDirectory ?? ""}clip_${effectId}_${Date.now()}.m4a`;
-        await FileSystem.copyAsync({ from: rawRecordingUri, to: outputUri });
+        const rawBase64 = await FileSystem.readAsStringAsync(rawRecordingUri, { encoding: FileSystem.EncodingType.Base64 });
+        await FileSystem.writeAsStringAsync(outputUri, rawBase64, { encoding: FileSystem.EncodingType.Base64 });
       }
 
       const newClip: ClipItem = {
@@ -498,7 +499,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             } catch { outputUri = uri; }
           } else {
             outputUri = `${FileSystem.cacheDirectory ?? ""}rt_${effectId}_${Date.now()}.m4a`;
-            await FileSystem.copyAsync({ from: uri, to: outputUri });
+            const rtBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            await FileSystem.writeAsStringAsync(outputUri, rtBase64, { encoding: FileSystem.EncodingType.Base64 });
           }
 
           if (!realtimeActive.current) return;
