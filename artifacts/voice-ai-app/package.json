@@ -3,6 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "main": "expo-router/entry",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID EXPO_PUBLIC_ELEVENLABS_KEY=$ELEVENLABS_API_KEY EXPO_PUBLIC_FIREBASE_API_KEY=$FIREBASE_API_KEY REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
     "build": "node scripts/build.js",
@@ -35,6 +36,7 @@
     "expo-updates": "0.26.16",
     "expo-web-browser": "~15.0.10",
     "firebase": "^12.12.1",
+    "fs-extra": "^11.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
