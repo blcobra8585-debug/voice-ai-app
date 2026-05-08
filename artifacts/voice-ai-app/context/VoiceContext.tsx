@@ -47,6 +47,24 @@ export const EFFECTS: EffectConfig[] = [
   { id: "whisper",  label: "Whisper",   icon: "wind",           color: "#B2EBF2", description: "Soft whisper" },
 ];
 
+// Client-side audio rate config (no server needed for non-Gojo effects)
+const CLIENT_EFFECT_CONFIG: Record<EffectId, { rate: number; correctPitch: boolean }> = {
+  gojo:     { rate: 1.0,  correctPitch: true  },
+  robot:    { rate: 0.75, correctPitch: false },
+  deep:     { rate: 0.65, correctPitch: false },
+  chipmunk: { rate: 1.80, correctPitch: false },
+  female:   { rate: 1.25, correctPitch: false },
+  alien:    { rate: 1.45, correctPitch: false },
+  echo:     { rate: 0.90, correctPitch: false },
+  cave:     { rate: 0.78, correctPitch: false },
+  demon:    { rate: 0.55, correctPitch: false },
+  radio:    { rate: 1.05, correctPitch: false },
+  whisper:  { rate: 0.90, correctPitch: false },
+};
+
+const ELEVENLABS_VOICE_ID = "erXw76RvabIuWST2abio"; // Antoni (Gojo)
+const ELEVENLABS_MODEL    = "eleven_multilingual_v2";
+
 export interface ClipItem {
   id: string;
   firestoreId?: string;
@@ -54,6 +72,8 @@ export interface ClipItem {
   effectId: EffectId;
   audioUri: string;
   durationMs: number;
+  playbackRate: number;
+  correctPitch: boolean;
   isGojoConverted?: boolean;
 }
 
@@ -87,72 +107,82 @@ interface VoiceContextType {
 }
 
 const VoiceContext = createContext<VoiceContextType | null>(null);
-const CLIPS_KEY = "voice_studio_clips_v3";
+const CLIPS_KEY = "voice_studio_clips_v4";
 const REALTIME_CHUNK_MS = 2500;
 
-// ─── Backend API URL ───────────────────────────────────────────────────────
-const API_BASE = (() => {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  if (domain) return `https://${domain}`;
-  return "http://localhost:5000";
-})();
+// ─── ElevenLabs direct call (Gojo AI effect) ────────────────────────────────
+async function callGojoVoice(audioUri: string): Promise<string> {
+  const apiKey = process.env.EXPO_PUBLIC_ELEVENLABS_KEY ?? "";
+  if (!apiKey) throw new Error("ElevenLabs key not set. Add EXPO_PUBLIC_ELEVENLABS_KEY.");
 
-// ─── Unified backend effect caller ────────────────────────────────────────
-async function callBackendEffect(audioUri: string, effectId: EffectId): Promise<string> {
-  const isGojo = effectId === "gojo";
-  const endpoint = isGojo ? "speech-to-speech" : "effects";
-  const url = `${API_BASE}/api/voice/${endpoint}`;
+  const fileInfo = await FileSystem.getInfoAsync(audioUri);
+  if (!fileInfo.exists) throw new Error("Recording file not found.");
 
-  const formData = new FormData();
-  formData.append("audio", {
-    uri: audioUri,
-    name: "recording.m4a",
-    type: "audio/m4a",
-  } as unknown as Blob);
-
-  if (!isGojo) {
-    formData.append("effect", effectId);
-  }
-
-  const res = await fetch(url, {
-    method: "POST",
-    body: formData,
+  const base64Audio = await FileSystem.readAsStringAsync(audioUri, {
+    encoding: FileSystem.EncodingType.Base64,
   });
+
+  const boundary = `----VoiceBoundary${Date.now()}`;
+  const audioBytes = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0));
+  const voiceSettings = JSON.stringify({
+    stability: 0.4,
+    similarity_boost: 0.85,
+    style: 0.0,
+    use_speaker_boost: true,
+  });
+
+  const parts: Uint8Array[] = [];
+  const enc = new TextEncoder();
+  parts.push(enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="audio"; filename="rec.m4a"\r\nContent-Type: audio/m4a\r\n\r\n`));
+  parts.push(audioBytes);
+  parts.push(enc.encode(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model_id"\r\n\r\n${ELEVENLABS_MODEL}`));
+  parts.push(enc.encode(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="voice_settings"\r\n\r\n${voiceSettings}`));
+  parts.push(enc.encode(`\r\n--${boundary}--\r\n`));
+
+  const total = parts.reduce((s, p) => s + p.length, 0);
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const p of parts) { body.set(p, offset); offset += p.length; }
+
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/speech-to-speech/${ELEVENLABS_VOICE_ID}`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: body.buffer as ArrayBuffer,
+    }
+  );
 
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`Server error ${res.status}: ${txt.slice(0, 120)}`);
+    throw new Error(`ElevenLabs error ${res.status}: ${txt.slice(0, 120)}`);
   }
 
-  const json = await res.json() as { audio: string };
-  return json.audio;
+  const buf = await res.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
 }
 
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (e) {
-      lastError = e;
-      if (attempt < maxAttempts) await new Promise(r => setTimeout(r, attempt * 1500));
-    }
-  }
-  throw lastError;
-}
-
+// ─── Firebase helpers ────────────────────────────────────────────────────────
 async function saveToFirestore(clip: Omit<ClipItem, "firestoreId" | "audioUri">): Promise<string | null> {
   try {
     const docRef = await addDoc(collection(db, "clips"), {
       timestamp: clip.timestamp,
       effectId: clip.effectId,
       durationMs: clip.durationMs,
+      playbackRate: clip.playbackRate,
+      correctPitch: clip.correctPitch,
       isGojoConverted: clip.isGojoConverted ?? false,
       createdAt: serverTimestamp(),
     });
     return docRef.id;
   } catch {
-    return null;
+    return null; // graceful fallback if Firestore not enabled
   }
 }
 
@@ -160,17 +190,30 @@ async function deleteFromFirestore(firestoreId: string): Promise<void> {
   try { await deleteDoc(doc(db, "clips", firestoreId)); } catch {}
 }
 
+// ─── Retry helper ────────────────────────────────────────────────────────────
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try { return await fn(); } catch (e) {
+      lastError = e;
+      if (attempt < maxAttempts) await new Promise(r => setTimeout(r, attempt * 1500));
+    }
+  }
+  throw lastError;
+}
+
+// ─── Provider ────────────────────────────────────────────────────────────────
 export function VoiceProvider({ children }: { children: React.ReactNode }) {
-  const [appState, setAppState]               = useState<AppState>("idle");
-  const [clips, setClips]                     = useState<ClipItem[]>([]);
-  const [errorMessage, setErrorMessage]       = useState<string | null>(null);
+  const [appState, setAppState]                   = useState<AppState>("idle");
+  const [clips, setClips]                         = useState<ClipItem[]>([]);
+  const [errorMessage, setErrorMessage]           = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [playingId, setPlayingId]             = useState<string | null>(null);
-  const [processingEffect, setProcessingEffect] = useState<EffectId | null>(null);
-  const [rawRecordingUri, setRawRecordingUri] = useState<string | null>(null);
-  const [bgmiMode, setBgmiMode]               = useState(false);
-  const [realtimeMode, setRealtimeMode]       = useState(false);
-  const [realtimeEffect, setRealtimeEffectState] = useState<EffectId>("gojo");
+  const [playingId, setPlayingId]                 = useState<string | null>(null);
+  const [processingEffect, setProcessingEffect]   = useState<EffectId | null>(null);
+  const [rawRecordingUri, setRawRecordingUri]     = useState<string | null>(null);
+  const [bgmiMode, setBgmiMode]                   = useState(false);
+  const [realtimeMode, setRealtimeMode]           = useState(false);
+  const [realtimeEffect, setRealtimeEffectState]  = useState<EffectId>("gojo");
 
   const recordingRef   = useRef<Audio.Recording | null>(null);
   const soundRef       = useRef<Audio.Sound | null>(null);
@@ -203,8 +246,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   async function loadClips() {
     try {
       const raw = await AsyncStorage.getItem(CLIPS_KEY);
-      const local: ClipItem[] = raw ? JSON.parse(raw) : [];
-      setClips(local);
+      setClips(raw ? JSON.parse(raw) : []);
     } catch {}
   }
 
@@ -213,6 +255,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     setClips(items);
   }
 
+  // ─── Recording ────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
     try {
       if (Platform.OS !== "web") {
@@ -263,7 +306,109 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // ─── Real-time session ───────────────────────────────────────────────────
+  // ─── Apply effect ─────────────────────────────────────────────────────────
+  const applyEffect = useCallback(async (effectId: EffectId) => {
+    if (!rawRecordingUri) return;
+    const cfg = CLIENT_EFFECT_CONFIG[effectId];
+    try {
+      setProcessingEffect(effectId);
+      setAppState("processing");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      let outputUri: string;
+      let isGojoConverted = false;
+
+      if (effectId === "gojo") {
+        // Direct ElevenLabs call — no server
+        const audioBase64 = await withRetry(() => callGojoVoice(rawRecordingUri), 3);
+        outputUri = (FileSystem.cacheDirectory ?? "") + `clip_gojo_${Date.now()}.mp3`;
+        await FileSystem.writeAsStringAsync(outputUri, audioBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        isGojoConverted = true;
+      } else {
+        // Client-side: copy audio, apply rate during playback
+        outputUri = (FileSystem.cacheDirectory ?? "") + `clip_${effectId}_${Date.now()}.m4a`;
+        await FileSystem.copyAsync({ from: rawRecordingUri, to: outputUri });
+      }
+
+      const newClip: ClipItem = {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: Date.now(),
+        effectId,
+        audioUri: outputUri,
+        durationMs: recordingDuration * 1000,
+        playbackRate: cfg.rate,
+        correctPitch: cfg.correctPitch,
+        isGojoConverted,
+      };
+
+      // Save metadata to Firebase Firestore
+      const fid = await saveToFirestore(newClip);
+      if (fid) newClip.firestoreId = fid;
+
+      const updated = [newClip, ...clips].slice(0, 30);
+      await persistClips(updated);
+      setProcessingEffect(null);
+      await playFromUri(outputUri, newClip.id, cfg.rate, cfg.correctPitch);
+    } catch (e: unknown) {
+      setProcessingEffect(null);
+      setErrorMessage(e instanceof Error ? e.message : "Effect failed. Check internet.");
+      setAppState("error");
+    }
+  }, [rawRecordingUri, clips, recordingDuration]);
+
+  // ─── Playback ─────────────────────────────────────────────────────────────
+  async function playFromUri(uri: string, id: string, rate = 1.0, correctPitch = true) {
+    try {
+      if (soundRef.current) {
+        try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
+        soundRef.current = null;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: bgmiMode,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true, volume: 1.0 }
+      );
+      if (rate !== 1.0) {
+        try { await sound.setRateAsync(rate, correctPitch); } catch {}
+      }
+      soundRef.current = sound;
+      setAppState("playing");
+      setPlayingId(id);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      sound.setOnPlaybackStatusUpdate(status => {
+        if (status.isLoaded && status.didJustFinish) {
+          setAppState("recorded");
+          setPlayingId(null);
+          sound.unloadAsync();
+          soundRef.current = null;
+        }
+      });
+    } catch (e: unknown) {
+      setErrorMessage(e instanceof Error ? e.message : "Playback failed.");
+      setAppState("error");
+    }
+  }
+
+  const playClip = useCallback(async (clip: ClipItem) => {
+    await playFromUri(clip.audioUri, clip.id, clip.playbackRate ?? 1.0, clip.correctPitch ?? true);
+  }, [bgmiMode]);
+
+  const stopPlayback = useCallback(async () => {
+    if (soundRef.current) {
+      try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
+      soundRef.current = null;
+    }
+    setAppState(rawRecordingUri ? "recorded" : "idle");
+    setPlayingId(null);
+  }, [rawRecordingUri]);
+
+  // ─── Real-time session ────────────────────────────────────────────────────
   const startRealtimeSession = useCallback(async () => {
     try {
       if (Platform.OS !== "web") {
@@ -300,19 +445,24 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           if (!uri) { recordAndProcess(); return; }
 
           const effectId = realtimeEffect;
+          const cfg = CLIENT_EFFECT_CONFIG[effectId];
           let outputUri: string;
           let isGojoConverted = false;
 
-          try {
-            const b64 = await withRetry(() => callBackendEffect(uri, effectId), 2);
-            const ext = effectId === "gojo" ? "mp3" : "mp3";
-            outputUri = (FileSystem.cacheDirectory ?? "") + `rt_${effectId}_${Date.now()}.${ext}`;
-            await FileSystem.writeAsStringAsync(outputUri, b64, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-            isGojoConverted = effectId === "gojo";
-          } catch {
-            outputUri = uri;
+          if (effectId === "gojo") {
+            try {
+              const b64 = await withRetry(() => callGojoVoice(uri), 2);
+              outputUri = (FileSystem.cacheDirectory ?? "") + `rt_gojo_${Date.now()}.mp3`;
+              await FileSystem.writeAsStringAsync(outputUri, b64, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              isGojoConverted = true;
+            } catch {
+              outputUri = uri; // fallback to raw
+            }
+          } else {
+            outputUri = (FileSystem.cacheDirectory ?? "") + `rt_${effectId}_${Date.now()}.m4a`;
+            await FileSystem.copyAsync({ from: uri, to: outputUri });
           }
 
           if (!realtimeActive.current) return;
@@ -323,6 +473,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             effectId,
             audioUri: outputUri,
             durationMs: REALTIME_CHUNK_MS,
+            playbackRate: cfg.rate,
+            correctPitch: cfg.correctPitch,
             isGojoConverted,
           };
           const fid = await saveToFirestore(newClip);
@@ -333,7 +485,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
             return updated;
           });
 
-          await playRealtimeChunk(outputUri);
+          await playRealtimeChunk(outputUri, cfg.rate, cfg.correctPitch);
           if (realtimeActive.current) recordAndProcess();
         } catch {
           if (realtimeActive.current) recordAndProcess();
@@ -363,7 +515,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
 
-  async function playRealtimeChunk(uri: string) {
+  async function playRealtimeChunk(uri: string, rate: number, correctPitch: boolean) {
     try {
       if (soundRef.current) {
         try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
@@ -378,6 +530,9 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         { uri },
         { shouldPlay: true, volume: 1.0 }
       );
+      if (rate !== 1.0) {
+        try { await sound.setRateAsync(rate, correctPitch); } catch {}
+      }
       soundRef.current = sound;
       await new Promise<void>(resolve => {
         sound.setOnPlaybackStatusUpdate(status => {
@@ -391,97 +546,15 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
-  // ─── Apply effect (routes ALL effects through backend) ───────────────────
-  const applyEffect = useCallback(async (effectId: EffectId) => {
-    if (!rawRecordingUri) return;
-    try {
-      setProcessingEffect(effectId);
-      setAppState("processing");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      const audioBase64 = await withRetry(() => callBackendEffect(rawRecordingUri, effectId), 3);
-      const outputUri = (FileSystem.cacheDirectory ?? "") + `clip_${effectId}_${Date.now()}.mp3`;
-      await FileSystem.writeAsStringAsync(outputUri, audioBase64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const newClip: ClipItem = {
-        id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        timestamp: Date.now(),
-        effectId,
-        audioUri: outputUri,
-        durationMs: recordingDuration * 1000,
-        isGojoConverted: effectId === "gojo",
-      };
-
-      const fid = await saveToFirestore(newClip);
-      if (fid) newClip.firestoreId = fid;
-
-      const updated = [newClip, ...clips].slice(0, 30);
-      await persistClips(updated);
-      setProcessingEffect(null);
-      await playFromUri(outputUri, newClip.id);
-    } catch (e: unknown) {
-      setProcessingEffect(null);
-      setErrorMessage(e instanceof Error ? e.message : "Effect failed. Check internet.");
-      setAppState("error");
-    }
-  }, [rawRecordingUri, clips, recordingDuration]);
-
-  async function playFromUri(uri: string, id: string) {
-    try {
-      if (soundRef.current) {
-        try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
-        soundRef.current = null;
-      }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: bgmiMode,
-      });
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true, volume: 1.0 }
-      );
-      soundRef.current = sound;
-      setAppState("playing");
-      setPlayingId(id);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      sound.setOnPlaybackStatusUpdate(status => {
-        if (status.isLoaded && status.didJustFinish) {
-          setAppState("recorded");
-          setPlayingId(null);
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
-      });
-    } catch (e: unknown) {
-      setErrorMessage(e instanceof Error ? e.message : "Playback failed.");
-      setAppState("error");
-    }
-  }
-
-  const playClip = useCallback(async (clip: ClipItem) => {
-    await playFromUri(clip.audioUri, clip.id);
-  }, [bgmiMode]);
-
-  const stopPlayback = useCallback(async () => {
-    if (soundRef.current) {
-      try { await soundRef.current.stopAsync(); await soundRef.current.unloadAsync(); } catch {}
-      soundRef.current = null;
-    }
-    setAppState(rawRecordingUri ? "recorded" : "idle");
-    setPlayingId(null);
-  }, [rawRecordingUri]);
-
+  // ─── Share ────────────────────────────────────────────────────────────────
   const shareClip = useCallback(async (clip: ClipItem, target: "whatsapp" | "instagram" | "any" = "any") => {
     try {
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) { setErrorMessage("Sharing not available."); return; }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const mimeType = "audio/mpeg";
-      const uti = "public.mp3";
+      const mimeType = clip.isGojoConverted ? "audio/mpeg" : "audio/m4a";
+      const uti = clip.isGojoConverted ? "public.mp3" : "public.mpeg-4-audio";
 
       if (target === "whatsapp") {
         const canOpen = await Linking.canOpenURL("whatsapp://send");
@@ -490,7 +563,6 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       }
-
       if (target === "instagram") {
         const canOpen = await Linking.canOpenURL("instagram://app");
         if (canOpen) {
@@ -498,20 +570,19 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       }
-
       await Sharing.shareAsync(clip.audioUri, { mimeType, dialogTitle: "Share Voice Clip", UTI: uti });
     } catch (e: unknown) {
       setErrorMessage(e instanceof Error ? e.message : "Share failed.");
     }
   }, []);
 
+  // ─── Delete ───────────────────────────────────────────────────────────────
   const deleteClip = useCallback(async (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const clip = clips.find(c => c.id === id);
     if (clip?.firestoreId) await deleteFromFirestore(clip.firestoreId);
     try { if (clip?.audioUri) await FileSystem.deleteAsync(clip.audioUri, { idempotent: true }); } catch {}
-    const updated = clips.filter(c => c.id !== id);
-    await persistClips(updated);
+    await persistClips(clips.filter(c => c.id !== id));
   }, [clips]);
 
   const clearError = useCallback(() => {
