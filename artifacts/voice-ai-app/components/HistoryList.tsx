@@ -5,12 +5,12 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useColors } from "@/hooks/useColors";
 import { GlassCard } from "./GlassCard";
-import type { VoiceHistoryItem } from "@/context/VoiceContext";
+import type { ClipItem } from "@/context/VoiceContext";
 
 interface HistoryListProps {
-  items: VoiceHistoryItem[];
+  items: ClipItem[];
   playingId: string | null;
-  onPlay: (item: VoiceHistoryItem) => void;
+  onPlay: (item: ClipItem) => void;
   onStop: () => void;
   onDelete: (id: string) => void;
 }
@@ -35,7 +35,7 @@ function HistoryItemRow({
   onDelete,
   index,
 }: {
-  item: VoiceHistoryItem;
+  item: ClipItem;
   isPlaying: boolean;
   onPlay: () => void;
   onStop: () => void;
