@@ -12,8 +12,8 @@ const voiceRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const ELEVENLABS_API_KEY = process.env["ELEVENLABS_API_KEY"] ?? "";
-const VOICE_ID = "EXAVITQu4vr4xnNLhMaY";
-const MODEL_ID = "eleven_turbo_v2_5";
+const VOICE_ID = "erXw76RvabIuWST2abio";
+const MODEL_ID = "eleven_multilingual_v2";
 
 const EFFECTS: Record<string, string> = {
   robot:     "aecho=0.8:0.88:30:0.5,vibrato=f=20:d=0.5,asetrate=40000,aresample=44100",
@@ -77,7 +77,7 @@ voiceRouter.post("/speech-to-speech", upload.single("audio"), async (req, res) =
     });
     form.append("model_id", MODEL_ID);
     form.append("voice_settings", JSON.stringify({
-      stability: 0.71,
+      stability: 0.4,
       similarity_boost: 0.85,
       style: 0.0,
       use_speaker_boost: true,
