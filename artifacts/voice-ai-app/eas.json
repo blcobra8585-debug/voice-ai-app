@@ -9,29 +9,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_ELEVENLABS_KEY": "SET_IN_EAS_SECRETS",
-        "EXPO_PUBLIC_FIREBASE_API_KEY": "SET_IN_EAS_SECRETS"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_ELEVENLABS_KEY": "SET_IN_EAS_SECRETS",
-        "EXPO_PUBLIC_FIREBASE_API_KEY": "SET_IN_EAS_SECRETS"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "EXPO_PUBLIC_ELEVENLABS_KEY": "SET_IN_EAS_SECRETS",
-        "EXPO_PUBLIC_FIREBASE_API_KEY": "SET_IN_EAS_SECRETS"
       }
     }
   },
