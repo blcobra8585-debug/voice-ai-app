@@ -7,22 +7,31 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "REPLACE_WITH_YOUR_REPLIT_DOMAIN"
+        "EXPO_PUBLIC_ELEVENLABS_KEY": "SET_IN_EAS_SECRETS",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "SET_IN_EAS_SECRETS"
       }
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "REPLACE_WITH_YOUR_REPLIT_DOMAIN"
+        "EXPO_PUBLIC_ELEVENLABS_KEY": "SET_IN_EAS_SECRETS",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "SET_IN_EAS_SECRETS"
       }
     },
     "production": {
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "REPLACE_WITH_YOUR_REPLIT_DOMAIN"
+        "EXPO_PUBLIC_ELEVENLABS_KEY": "SET_IN_EAS_SECRETS",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "SET_IN_EAS_SECRETS"
       }
     }
   },
