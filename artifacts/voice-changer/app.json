@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Gojo Voice",
+    "slug": "voice-changer",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "voice-changer",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#050A14"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.voice.changer",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Gojo Voice needs your microphone to record and convert your voice.",
+        "NSPhotoLibraryAddUsageDescription": "Gojo Voice needs permission to save audio clips to your library.",
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "com.voice.changer",
+      "versionCode": 4,
+      "backgroundColor": "#050A14",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.VIBRATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#050A14"
+      }
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      ["expo-router", {}],
+      "expo-font",
+      "expo-web-browser",
+      ["expo-av", {
+        "microphonePermission": "Gojo Voice needs your microphone to record and convert your voice."
+      }],
+      ["expo-media-library", {
+        "photosPermission": "Allow Gojo Voice to save audio clips.",
+        "saveToPhotosAlbum": true
+      }]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ac5f1412-c637-4ecc-8af1-46876cef5dea"
+      }
+    },
+    "owner": "suhanshaikh78957"
+  }
+}
