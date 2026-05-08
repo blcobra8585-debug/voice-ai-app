@@ -2,12 +2,12 @@ import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, initializeFirestore, memoryLocalCache } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC7fSAoIOBZy44K0TET_pkQB8qK7_z1nfI",
-  authDomain: "voice-changer-d5266.firebaseapp.com",
-  projectId: "voice-changer-d5266",
-  storageBucket: "voice-changer-d5266.firebasestorage.app",
-  messagingSenderId: "627241906810",
-  appId: "1:627241906810:android:c42d7aa506c051c97f81c3",
+  apiKey: "AIzaSyAy83WHOCsyig7_c19xWVOW7spXvNbFA44",
+  authDomain: "voice-changer-f8df7.firebaseapp.com",
+  projectId: "voice-changer-f8df7",
+  storageBucket: "voice-changer-f8df7.firebasestorage.app",
+  messagingSenderId: "735117645262",
+  appId: "1:735117645262:android:a3510c9906bc74ea66079f",
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
