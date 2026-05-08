@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Voice AI App"
+version = "1.0.0"
+id = "artifacts/voice-ai-app"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 25939
+
+[services.development]
+run = "pnpm --filter @workspace/voice-ai-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/voice-ai-app", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/voice-ai-app", "run", "serve" ]
+
+[services.env]
+PORT = "25939"
+BASE_PATH = "/"

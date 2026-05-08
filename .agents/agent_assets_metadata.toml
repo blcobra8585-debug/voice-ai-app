@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "YQV6cQvAz1L9m6qNeDcIV"
+uri = "file://artifacts/voice-ai-app/assets/images/icon.png"
+type = "image"
+title = "generated_image"
