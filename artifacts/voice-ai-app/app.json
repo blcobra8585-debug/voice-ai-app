@@ -27,7 +27,8 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -51,11 +52,17 @@
         {
           "microphonePermission": "Gojo Voice needs your microphone to record and convert your voice."
         }
-      ],
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ac5f1412-c637-4ecc-8af1-46876cef5dea"
+      }
+    },
+    "owner": "suhanshaikh78957"
   }
 }
