@@ -214,17 +214,15 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [realtimeMode, setRealtimeMode]       = useState(false);
   const [realtimeEffect, setRealtimeEffectState] = useState<EffectId>("gojo");
 
-  const recordingRef     = useRef<Audio.Recording | null>(null);
-  const soundRef         = useRef<Audio.Sound | null>(null);
-  const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
-  const realtimeActive   = useRef(false);
-  const realtimeChunkRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingRef   = useRef<Audio.Recording | null>(null);
+  const soundRef       = useRef<Audio.Sound | null>(null);
+  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const realtimeActive = useRef(false);
 
   useEffect(() => {
     loadClips();
     return () => {
       timerRef.current && clearInterval(timerRef.current);
-      realtimeChunkRef.current && clearInterval(realtimeChunkRef.current);
       soundRef.current?.unloadAsync();
     };
   }, []);
