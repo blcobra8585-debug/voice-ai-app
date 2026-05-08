@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Voice Changer"
+version = "2.0.0"
+id = "artifacts/voice-changer"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 25940
+
+[services.development]
+run = "pnpm --filter @workspace/voice-changer run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/voice-changer", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/voice-changer", "run", "serve" ]
+
+[services.env]
+PORT = "25940"
+BASE_PATH = "/"
