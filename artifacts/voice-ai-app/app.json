@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Bella AI",
+    "name": "Gojo Voice",
     "slug": "voice-ai-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,16 +15,24 @@
     },
     "ios": {
       "supportsTablet": false,
+      "bundleIdentifier": "com.voice.changer",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Bella AI needs access to your microphone to record your voice for AI conversion."
+        "NSMicrophoneUsageDescription": "Gojo Voice needs your microphone to record and convert your voice."
       }
     },
     "android": {
+      "package": "com.voice.changer",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#050A14"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -41,9 +49,9 @@
       [
         "expo-av",
         {
-          "microphonePermission": "Bella AI needs your microphone to record voice for AI conversion."
+          "microphonePermission": "Gojo Voice needs your microphone to record and convert your voice."
         }
-      ]
+      ],
     ],
     "experiments": {
       "typedRoutes": true,
