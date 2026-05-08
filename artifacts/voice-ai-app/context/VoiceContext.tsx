@@ -1,11 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  AudioModule,
-  RecordingPresets,
-  createAudioPlayer,
-  useAudioRecorder,
-  type AudioPlayer,
-} from "expo-audio";
+import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import React, {
@@ -47,22 +41,21 @@ const HISTORY_KEY = "voice_ai_history_v2";
 const BASE_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 export function VoiceProvider({ children }: { children: React.ReactNode }) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-
   const [state, setState] = useState<VoiceState>("idle");
   const [history, setHistory] = useState<VoiceHistoryItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
 
-  const playerRef = useRef<AudioPlayer | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadHistory();
     return () => {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-      playerRef.current?.remove();
+      soundRef.current?.unloadAsync();
     };
   }, []);
 
@@ -81,21 +74,22 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const startRecording = useCallback(async () => {
     try {
       if (Platform.OS !== "web") {
-        const perm = await AudioModule.requestRecordingPermissionsAsync();
-        if (!perm.granted) {
-          setErrorMessage("Microphone permission is required.");
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== "granted") {
+          setErrorMessage("Microphone permission required.");
           setState("error");
           return;
         }
-        await AudioModule.setAudioModeAsync({
-          allowsRecording: true,
-          interruptionMode: 1,
-          playsInSilent: true,
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
         });
       }
 
-      await recorder.prepareToRecordAsync();
-      recorder.record();
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
 
       setState("recording");
       setRecordingDuration(0);
@@ -108,25 +102,30 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       setErrorMessage(e?.message ?? "Failed to start recording.");
       setState("error");
     }
-  }, [recorder]);
+  }, []);
 
   const stopAndConvert = useCallback(async () => {
+    if (!recordingRef.current) return;
+
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;
     }
 
+    const currentDuration = recordingDuration;
+
     try {
       setState("processing");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      await recorder.stop();
-      const uri = recorder.uri;
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
 
-      if (!uri) throw new Error("No recording URI found.");
+      if (!uri) throw new Error("No recording URI.");
 
       if (Platform.OS !== "web") {
-        await AudioModule.setAudioModeAsync({ allowsRecording: false });
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
       }
 
       const formData = new FormData();
@@ -142,8 +141,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API error ${response.status}: ${errText}`);
+        const txt = await response.text();
+        throw new Error(`Server error ${response.status}: ${txt}`);
       }
 
       const { audio } = await response.json();
@@ -158,7 +157,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         timestamp: Date.now(),
         convertedUri,
-        durationMs: recordingDuration * 1000,
+        durationMs: currentDuration * 1000,
       };
 
       const updated = [newItem, ...history].slice(0, 20);
@@ -169,38 +168,28 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       setErrorMessage(e?.message ?? "Voice conversion failed.");
       setState("error");
     }
-  }, [history, recordingDuration, recorder]);
+  }, [history, recordingDuration]);
 
   async function playFromUri(uri: string, id: string) {
     try {
-      if (playerRef.current) {
-        playerRef.current.remove();
-        playerRef.current = null;
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
       }
 
-      const player = createAudioPlayer({ uri });
-      playerRef.current = player;
-
-      player.play();
+      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+      soundRef.current = sound;
       setState("playing");
       setPlayingId(id);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const checkInterval = setInterval(() => {
-        if (!playerRef.current || playerRef.current.status === "readyToPlay" && !playerRef.current.playing) {
-          clearInterval(checkInterval);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
           setState("idle");
           setPlayingId(null);
-        }
-      }, 500);
-
-      player.addListener("playbackStatusUpdate", (status) => {
-        if (status.didJustFinish) {
-          clearInterval(checkInterval);
-          setState("idle");
-          setPlayingId(null);
-          player.remove();
-          playerRef.current = null;
+          sound.unloadAsync();
+          soundRef.current = null;
         }
       });
     } catch (e: any) {
@@ -214,9 +203,10 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const stopPlayback = useCallback(async () => {
-    if (playerRef.current) {
-      playerRef.current.remove();
-      playerRef.current = null;
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+      await soundRef.current.unloadAsync();
+      soundRef.current = null;
     }
     setState("idle");
     setPlayingId(null);
