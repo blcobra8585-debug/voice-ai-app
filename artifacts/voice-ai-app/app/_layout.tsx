@@ -8,6 +8,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Updates from "expo-updates";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -18,7 +19,22 @@ import { VoiceProvider } from "@/context/VoiceContext";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 3, retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000) },
+  },
+});
+
+async function checkForUpdates() {
+  if (__DEV__) return;
+  try {
+    const update = await Updates.checkForUpdateAsync();
+    if (update.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    }
+  } catch {}
+}
 
 function RootLayoutNav() {
   return (
@@ -35,6 +51,10 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+
+  useEffect(() => {
+    checkForUpdates();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
