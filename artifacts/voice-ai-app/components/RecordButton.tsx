@@ -12,7 +12,7 @@ import Animated, {
 import { useColors } from "@/hooks/useColors";
 
 interface RecordButtonProps {
-  state: "idle" | "recording" | "processing" | "playing" | "error";
+  state: "idle" | "recording" | "processing" | "playing" | "realtime" | "error";
   onPress: () => void;
   disabled?: boolean;
 }
