@@ -2,12 +2,20 @@
   "expo": {
     "name": "Gojo Voice",
     "slug": "voice-ai-app",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "voice-ai-app",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ac5f1412-c637-4ecc-8af1-46876cef5dea",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
@@ -17,18 +25,22 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.voice.changer",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Gojo Voice needs your microphone to record and convert your voice."
+        "NSMicrophoneUsageDescription": "Gojo Voice needs your microphone to record and convert your voice.",
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
       "package": "com.voice.changer",
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.VIBRATE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -41,9 +53,7 @@
     "plugins": [
       [
         "expo-router",
-        {
-          "origin": "https://replit.com/"
-        }
+        {}
       ],
       "expo-font",
       "expo-web-browser",
@@ -52,11 +62,16 @@
         {
           "microphonePermission": "Gojo Voice needs your microphone to record and convert your voice."
         }
+      ],
+      [
+        "expo-updates",
+        {
+          "username": "suhanshaikh78957"
+        }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "eas": {
